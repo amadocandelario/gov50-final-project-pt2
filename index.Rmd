@@ -1,14 +1,172 @@
 ---
 title: "Gov 50 Final Project"
-author: "Your Name Here"
-description: "My final project"
+author: "Amado Candelario"
+description: "Race and Gay Marriage"
 output:
   distill::distill_article:
     self_contained: false
 ---
+#Racial Identity and its Relationship to Perspectives on Gay Marraige.
 
+#Introduction
 
+Does racial identity implicate attitudes towards gay marriage? In this study, I plan to examine the extent to which differentiating racial identities have an impact on attitudes towards gay marriage. I hypothesize that white racial groups will tend to have more favorable attitudes toward gay marriage than other racial groups. I make this hypothesis because it reflects the social theory that non-white racial groups statistically tend to be more conservative on social issues because of their ties to tradition and religion. 
 
-## Project thoughts
+If I observe consistent behavior of people who identify as white having a more positive attitude towards gay marriage (meaning voting in favor of legalizing it), my hypothesis will be right. However, if I observe any minority ethnic group (Black, Latino, Asian, Native American) consistently having the the highest positive attitude towards gay marriage legalization, then my hypothesis will be wrong.
 
-I am interested in exploring data related to...
+* CES Cumulative Common Content
+=> Grouping variables 
+	  https://doi.org/10.7910/DVN/II2DB6
+
+* CES Policy Preferences 
+=> Outcome variables 
+	  https://doi.org/10.7910/DVN/OSXDQO
+
+#Data
+
+```{r}
+library(tidyverse)
+library(infer)
+library(broom)
+library(dplyr)
+library(modelsummary)
+library(haven)
+library(dataverse)
+```
+
+```{r}
+###the following three chunks of code were taken as instructed by the directions on how to merge these two data sets in CES user guide.
+###Load Cumulative Common content
+ccc <- get_dataframe_by_name(
+  filename = "cumulative_2006-2021.dta",
+  dataset = "10.7910/DVN/II2DB6",
+  server = "dataverse.harvard.edu",
+  original = TRUE,
+  .f = haven::read_dta)
+```
+
+```{r}
+###Load Cumulative Policy Preferences
+ces <- get_dataframe_by_name(
+  filename = "cumulative_ces_policy_preferences.tab",
+  dataset = "10.7910/DVN/OSXDQO",
+  server = "dataverse.harvard.edu",
+  original = TRUE,
+  .f = haven::read_dta)
+```
+
+```{r}
+###calling data
+ccc
+ces
+```
+
+```{r}
+###Merge common content to policy preferences
+ccc_ces <- inner_join(ccc, ces)
+```
+
+My sample is compromised of survey data from the CES Cumulative Common Content and the CES Policy Preferences. I merge these datasets across the "case_id" variable. The explanatory variable of interest is racial identity and my outcome variable is attitudes on gay marriage. 
+
+In the CCC survey the race variable is coded as "race" and in the PP survey the attitudes towards gay marriage is encoded under three variables "gaymarriage_scale" (measures attitude towards gay marriage), "gaymarriage_ban" (whether or not participant supports the banning of gay marriage), and "gaymarriage_legalize" (whether or not the participant supports the legalization of gay marriage). I use "gaymarriage_legalize" for this study because it analyses views of the legalization of gay marriage from the years 2012 to 2016, which allows me to see how perspectives on gay marriage have shifted overtime for participants of different racial identities. I recode race to create a binary variable for each race.
+
+The research design is a cross-sectional study because I do not anyalze change overtime.
+
+#Data Visualization
+
+```{r}
+### cleaning data and select correct variables 
+cleaned_ccc_ces <- ccc_ces |>
+  select(case_id, year, race, gaymarriage_legalize) |>
+  filter(year >= 2012 & year <= 2016) |>
+  mutate(gaymarriage = if_else(gaymarriage_legalize == 1, 1, 0),
+         gaymarriage_lab = if_else(gaymarriage_legalize == 1, "Support", "Oppose"),
+         race_lab = case_when(race == 1 ~ "W",
+                              race == 2 ~ "B",
+                              race == 3 ~ "H",
+                              race == 4 ~ "A",
+                              race == 5 ~ "N",
+                              race == 6 ~ "M",
+                              race == 7 ~ "O",
+                              race == 8 ~ "ME"),
+         white = if_else(race == 1, 1, 0),
+         black = if_else(race == 2, 1, 0),
+         hisp = if_else(race == 3, 1, 0),
+         asian = if_else(race == 4, 1, 0),
+         native = if_else(race == 5, 1, 0),
+         mixed = if_else(race == 6, 1, 0),
+         other = if_else(race == 7, 1, 0),
+         middle = if_else(race == 8, 1, 0)) |>
+  drop_na()
+```
+
+```{r}
+ccc_ces_barplot <- ggplot(data = cleaned_ccc_ces, 
+                          mapping = aes(x = gaymarriage_lab))+
+  geom_bar()+
+  xlab(label = "Perspective on Gay Marriage Legalization")+
+  ylab(label = "Amount of Votes")
+
+ccc_ces_barplot
+```
+
+#Results
+
+```{r}
+lm_R <- lm(gaymarriage_legalize ~ white + black + hisp + asian + middle + mixed + native + other, data = cleaned_ccc_ces)
+glance(lm_R)
+tidy(lm_R)
+```
+
+```{r}
+lm_RY <- lm(gaymarriage_legalize ~ white + black + hisp + asian + middle + mixed + native + other + factor(year), data = cleaned_ccc_ces)
+glance(lm_RY)
+tidy(lm_RY)
+```
+
+```{r}
+var_labels <- c("(Intercept)" = "Intercept",
+                "black" = "Black",
+                "hisp" = "Hispanic",
+                "asian" = "Asian",
+                "native" = "Native American",
+                "mixed" = "Mixed",
+                "other" = "Other",
+                "middle" = "Middle Eastern",
+                "white" = "White",
+                "factor(year)2013" = "2013",
+                "factor(year)2014" = "2014",
+                "factor(year)2015" = "2015",
+                "factor(year)2016" = "2016")
+
+modelsummary::modelsummary(list("Model 1 (race only)" = lm_R, 
+                                "Model 2 (race and year)" = lm_RY),
+                           statistic = c("s.e. = {std.error}",
+                                         "p = {p.value}"),
+                           coef_map = var_labels, 
+                           gof_map = c("nobs", "r.squared", "adj.r.squared"))
+```
+
+```{r}
+ccc_ces_barplot_2 <- ggplot(data = cleaned_ccc_ces, 
+                          mapping = aes(fill = gaymarriage_lab,
+                                        x = factor(race_lab)))+
+  geom_bar()+
+  xlab(label = "Race")+
+  ylab(label = "Amount of Votes")+
+  labs(fill = "Perspective on Gay Marriage")+
+  facet_wrap(~year)
+
+ccc_ces_barplot_2
+```
+#Results 
+
+The first model is a linear regression on the perspective of gay marriage legalization (Support or Oppose) and racial identity. The second model is a linear regression on the perspective on gay marraige legalization (Support or Oppose) and racial identity, controlling for year. Model two resulted in a better fit, with an adjusted R^2 value of .016. 
+
+In both models, the racial identity that was associated with the highest reduction in support for gay marriage was Mixed (-27% & -27%) and Asian (-27% and -25%) populations. On the other hand, Native (-10% and -10%) and Black (-12% & -17%) racial identities demonstrate the most affinity to positive perspectives on gay marriage. 
+
+Given that the study is designed around a cross-sectional research approach, it cannot eliminate competing explanations for perspectives on gay marriage. There is no way to give a treatment in this study because you cannot change someones race. Therefore, we cannot interpret the results the regression presented casually. However, the results disprove my hypothesis that white populations would tend to be more supportive of gay marriage in comparison to other racial identities. Overall, this study does not serve as adequate support for the the claim that race is an adequate explanation for deviating perspectives on gay marriage, as described above.
+
+#Conclusion
+
+In conclusion, the study disproves that white populations have more favorable perspectives on gay marriage in comparison to minority groups. The limitations in this study are present in its inability to account for confounding variables and its inability to provide a treatment since you cannot change race. Instead of just testing the relationship of race and its relationship to perspectives on gay marriage, future studies can benefit, and potentially provide more legitimate results, if they test variables such as political party of an individual and religious beliefs. By holding equal the previously discussed variables, a greater potential to infer the existence of casual relationships is possible.
